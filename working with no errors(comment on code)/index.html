@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <!--<script src='./script.js'></script>-->
+  <link rel='stylesheet' type='text/css' href='./style.css'>
+  <script type="text/javascript" src="https://cdn.fusioncharts.com/fusioncharts/latest/fusioncharts.js"></script>
+<script type="text/javascript" src="https://cdn.fusioncharts.com/fusioncharts/latest/themes/fusioncharts.theme.fusion.js"></script>
+<!-- Optional theme -->
+<link rel="stylesheet" type="text/css" href="resources/tutorial/css/example.css">
+
+
+
+
+  <title>Water Management System</title>
+</head>
+<body>
+  <div class="fluid-container"> <!--//creating a webpage container-->
+    <div class="tank">
+
+        <!--//create a container for chart to render in-->
+        <div id="chart-container">FusionCharts will render here</div>
+
+        
+    </div>
+    
+    <div class="buttons" id="containerLed"> <!--//container for the buttons/switch-->
+        
+            <div>
+              <div class="col-lg-12">
+                           
+                <p><input type="checkbox" class="btn btn-lg" id="light">hatch</input></p>
+                <p> <button id="b_on" type="button" class="btn btn-lg btn-default">Light on</button>
+                <button id="b_off" type="button" class="btn btn-lg btn-default">Light Off</button>
+
+                  </div>
+                </div>
+        
+        
+      
+    </div>
+    <div class="servo"> <!--//servo motor control buttons container-->
+
+      
+
+      <h4>Servo to position:</h4>
+        <div class="btn-group" data-toggle="buttons">
+            <label class="servobtn btn btn-primary">
+              <input type="radio" name="servo" id="servo1" value="0"> Open
+            </label>
+            
+            <label class="servobtn btn btn-primary">
+              <input type="radio" name="servo" id="servo3" value="90"> Closed
+            </label>
+
+
+
+
+      
+      
+    </div>
+    <div class="row">
+      
+    </div>
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<!-- Include all compiled plugins (below), or include individual files as needed -->
+<script src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+    <script>
+
+    //fusion chart render
+    var data = new Object();
+
+    var urlParams = new URLSearchParams(location.search)
+    var fuelVolume = urlParams.get("fuelVolume");
+
+    if (fuelVolume === null) fuelVolume = 280;
+    else fuelVolume = parseInt(fuelVolume);
+
+
+
+    var fuelWidget;
+    FusionCharts.ready(function() {
+    //fuelVolume = 1000,
+    fuelWidget = new FusionCharts({
+      type: 'cylinder',
+      dataFormat: 'json',
+      id: 'fuelMeter',
+      renderAt: 'chart-container',
+      width: '200',
+      height: '350',
+      dataSource: {
+        "chart": {
+          "theme": "fusion",
+          "caption": "Water Tank",
+          "subcaption": "",
+          "lowerLimit": "0",
+          "upperLimit": "1000",
+          "lowerLimitDisplay": "Empty",
+          "upperLimitDisplay": "Full",
+          "numberSuffix": " ltrs",
+          "showValue": "1",
+          "chartBottomMargin": "45",
+          "showValue": "0",
+          //Changing the Cylinder fill color
+        "cylFillColor": "#80c5de"
+        },
+        "value": fuelVolume,
+        "annotations": {
+          "origw": "400",
+          "origh": "190",
+          "autoscale": "1",
+          "groups": [{
+            "id": "range",
+            "items": [{
+                "id": "rangeBg",
+                "type": "rectangle",
+                "x": "$canvasCenterX-45",
+                "y": "$chartEndY-30",
+                "tox": "$canvasCenterX +45",
+                "toy": "$chartEndY-75",
+                "fillcolor": "#80c5de"
+              },
+              {
+                "id": "rangeText",
+                "type": "Text",
+                "fontSize": "11",
+                "fillcolor": "#333333",
+                "text": "80 ltrs",
+                "x": "$chartCenterX-45",
+                "y": "$chartEndY-70"
+              }
+            ]
+          }]
+        }
+
+      },
+      "events": {
+        "rendered": function(evtObj, argObj) {
+          setInterval(function() {
+            (fuelVolume < 10) ? (fuelVolume = 80) : "";
+            FusionCharts("fuelMeter").feedData("&value=");
+            
+            
+          }, 1000);
+        },
+        //Using real time update event to update the annotation 
+        //showing available volume of water
+        "realTimeUpdateComplete": function(evt, arg) {
+          var annotations = evt.sender.annotations,
+            dataVal = evt.sender.getData(),
+            colorVal = (dataVal >= 70) ? "#6caa03" : ((dataVal <= 35) ? "#e44b02" : "#f8bd1b");
+          //Updating value
+          annotations && annotations.update('rangeText', {
+            "text": dataVal + " ltrs"
+          });
+          //Changing background color as per value
+          annotations && annotations.update('rangeBg', {
+            "fillcolor": colorVal
+          });
+
+        }
+      }
+    }).render();
+});
+
+        var socket = io.connect('http://localhost');
+
+        socket.on('news', function (data) {
+        console.log(data);
+      });
+
+      socket.on('sensor', function (data) {
+        console.log("Incoming sensor data:",data.raw);
+        console.log(data.raw + ", " + fuelVolume);
+        if (Math.abs(data.raw - fuelVolume) > 50) {
+          setTimeout(function() {
+            location.href = "index.html?fuelVolume=" + data.raw;
+          }, 1000);
+        }
+
+
+
+        //function updateData() {
+        //Converting the fetched data in FusionCharts format
+	    	var strData = "&value=" + data.raw;
+        //feeding the data to the real time chart
+        FusionCharts.items.fuelMeter.feedData(strData);
+        FusionCharts("fuelMeter").feedData("&value=");
+      }),1000;
+      //calling the update method
+	    
+        //servo button emitter to arduino
+        $('.servobtn').button();
+
+            $('.servobtn').on('change',function(){
+                console.log("Setting Servo Pos:",$('input[name=servo]:checked').val())
+                socket.emit('servo',{pos:$('input[name=servo]:checked').val()
+            });
+            });
+
+            
+        
+
+            //light on emitter function for led
+      function onLed(){ 
+          console.log("Light on:")
+        socket.emit('on');
+        
+         }
+    
+        document.getElementById('b_on').onclick = onLed;
+
+        //light off emitter function for led
+        function offLed(){ 
+          console.log("LED off:")
+        socket.emit('off');
+        
+         }
+    
+        document.getElementById('b_off').onclick = offLed;
+            
+
+
+    </script>
+
+    
+  </div> <!-- END OF FLUID CONTAINER -->
+</body>
+</html>
